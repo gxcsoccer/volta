@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 
 interface AgentRow {
   id: string;
@@ -23,11 +23,13 @@ export default function AdminAgentsPage() {
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 4000);
+  const showToast = (type: "success" | "error", msg: string) => {
+    setToast({ type, message: msg });
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 6000);
   };
 
   const fetchAgents = useCallback(async () => {
@@ -49,6 +51,52 @@ export default function AdminAgentsPage() {
     fetchAgents();
   }, [fetchAgents]);
 
+  // ---- Quick Actions (screening / trading / force trade) ----
+
+  const runAction = async (
+    action: "trade" | "screen" | "force",
+    url: string,
+    body: Record<string, unknown>
+  ) => {
+    setBusy(action);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secret: getSecret(), ...body }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        showToast("error", data.error);
+      } else if (action === "screen") {
+        const picks = data.results
+          ?.map(
+            (r: { agent_name: string; new_watchlist: string[] }) =>
+              `${r.agent_name} picked ${r.new_watchlist?.length ?? 0} stocks`
+          )
+          .join(" / ");
+        showToast("success", `Screening complete. ${picks}`);
+      } else {
+        const trades = data.results?.reduce(
+          (sum: number, r: { executed?: unknown[] }) =>
+            sum + (r.executed?.length ?? 0),
+          0
+        );
+        showToast(
+          "success",
+          `${data.results?.length ?? 0} agents processed, ${trades ?? 0} trades executed`
+        );
+      }
+      fetchAgents();
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // ---- Agent Actions ----
+
   const toggleActive = async (agent: AgentRow) => {
     setBusy(agent.id);
     try {
@@ -61,7 +109,7 @@ export default function AdminAgentsPage() {
         body: JSON.stringify({ is_active: !agent.is_active }),
       });
       await fetchAgents();
-      showToast(`${agent.name} ${agent.is_active ? "deactivated" : "activated"}`);
+      showToast("success", `${agent.name} ${agent.is_active ? "deactivated" : "activated"}`);
     } finally {
       setBusy(null);
     }
@@ -76,7 +124,7 @@ export default function AdminAgentsPage() {
         headers: { Authorization: `Bearer ${getSecret()}` },
       });
       await fetchAgents();
-      showToast(`${agent.name} reset to $100K`);
+      showToast("success", `${agent.name} reset to $100K`);
     } finally {
       setBusy(null);
     }
@@ -91,7 +139,7 @@ export default function AdminAgentsPage() {
         headers: { Authorization: `Bearer ${getSecret()}` },
       });
       await fetchAgents();
-      showToast(`${agent.name} deleted`);
+      showToast("success", `${agent.name} deleted`);
     } finally {
       setBusy(null);
     }
@@ -107,6 +155,56 @@ export default function AdminAgentsPage() {
 
   return (
     <div className="space-y-5">
+      {/* ---- Quick Actions ---- */}
+      <div className="bg-gray-900/60 border border-gray-800/60 rounded-xl p-4">
+        <div className="text-[10px] uppercase tracking-wider text-gray-500 font-medium mb-3">
+          Quick Actions
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <ActionBtn
+            onClick={() => runAction("screen", "/api/screen", {})}
+            loading={busy === "screen"}
+            disabled={busy !== null}
+            variant="secondary"
+            hint="AI agents pick stocks from S&P 500"
+          >
+            Run Screening
+          </ActionBtn>
+          <ActionBtn
+            onClick={() => runAction("trade", "/api/trade", {})}
+            loading={busy === "trade"}
+            disabled={busy !== null}
+            variant="primary"
+            hint="Execute trading round (market hours only)"
+          >
+            Run Trading
+          </ActionBtn>
+          <ActionBtn
+            onClick={() => runAction("force", "/api/trade", { force: true })}
+            loading={busy === "force"}
+            disabled={busy !== null}
+            variant="ghost"
+            hint="Skip market hours check (testing only)"
+          >
+            Force Trade
+          </ActionBtn>
+        </div>
+      </div>
+
+      {/* ---- Toast ---- */}
+      {toast && (
+        <div
+          className={`px-4 py-2.5 rounded-lg text-sm border transition-all ${
+            toast.type === "error"
+              ? "bg-red-950/60 text-red-300 border-red-900/60"
+              : "bg-emerald-950/60 text-emerald-300 border-emerald-900/60"
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
+      {/* ---- Agents Header ---- */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Agents</h1>
         <a
@@ -117,12 +215,7 @@ export default function AdminAgentsPage() {
         </a>
       </div>
 
-      {toast && (
-        <div className="px-4 py-2 rounded-lg text-sm bg-emerald-950/60 text-emerald-300 border border-emerald-900/60">
-          {toast}
-        </div>
-      )}
-
+      {/* ---- Agent List ---- */}
       {loading ? (
         <div className="space-y-3">
           {[0, 1, 2].map((i) => (
@@ -209,6 +302,8 @@ export default function AdminAgentsPage() {
   );
 }
 
+// ---- Sub-components ----
+
 function SmallBtn({
   children,
   onClick,
@@ -233,6 +328,49 @@ function SmallBtn({
       className={`px-2.5 py-1.5 text-[11px] font-medium rounded-lg border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${styles[variant]}`}
     >
       {children}
+    </button>
+  );
+}
+
+function ActionBtn({
+  children,
+  onClick,
+  loading,
+  disabled,
+  variant,
+  hint,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  loading: boolean;
+  disabled: boolean;
+  variant: "primary" | "secondary" | "ghost";
+  hint?: string;
+}) {
+  const base =
+    "px-4 py-2 text-sm font-medium rounded-lg transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed";
+  const styles = {
+    primary: "bg-emerald-600 hover:bg-emerald-500 text-white",
+    secondary: "bg-blue-600/80 hover:bg-blue-500 text-white",
+    ghost:
+      "bg-gray-800/60 hover:bg-gray-700 text-gray-300 border border-gray-700/50",
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`${base} ${styles[variant]}`}
+      title={hint}
+    >
+      {loading ? (
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          Running...
+        </span>
+      ) : (
+        children
+      )}
     </button>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { AVAILABLE_MODELS, getProviderForModel } from "@/lib/models";
 
 interface SkillOption {
   id: string;
@@ -242,14 +243,33 @@ export default function EditAgentPage() {
           <Field label="Description">
             <input value={description} onChange={(e) => setDescription(e.target.value)} className="input-field" />
           </Field>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Model">
-              <input value={model} onChange={(e) => setModel(e.target.value)} className="input-field" required />
-            </Field>
-            <Field label="Provider">
-              <input value={provider} onChange={(e) => setProvider(e.target.value)} className="input-field" />
-            </Field>
-          </div>
+          <Field label="Model">
+            <select
+              value={model}
+              onChange={(e) => {
+                setModel(e.target.value);
+                setProvider(getProviderForModel(e.target.value));
+              }}
+              className="input-field"
+              required
+            >
+              {(() => {
+                const groups = new Map<string, typeof AVAILABLE_MODELS>();
+                AVAILABLE_MODELS.forEach((m) => {
+                  const list = groups.get(m.provider) ?? [];
+                  list.push(m);
+                  groups.set(m.provider, list);
+                });
+                return Array.from(groups.entries()).map(([prov, models]) => (
+                  <optgroup key={prov} label={prov}>
+                    {models.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </optgroup>
+                ));
+              })()}
+            </select>
+          </Field>
           <Field label="Temperature">
             <div className="flex items-center gap-3">
               <input
