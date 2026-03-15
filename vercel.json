@@ -8,5 +8,8 @@
       "path": "/api/cron/screen",
       "schedule": "35 21 * * 1-5"
     }
-  ]
+  ],
+  "deploymentProtection": {
+    "standard": "none"
+  }
 }
