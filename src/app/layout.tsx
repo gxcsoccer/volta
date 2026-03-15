@@ -41,6 +41,12 @@ export default function RootLayout({
                 Trading Arena
               </span>
             </a>
+            <a
+              href="/admin"
+              className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+            >
+              Admin
+            </a>
           </div>
         </nav>
         <main className="max-w-6xl mx-auto px-5 py-8">{children}</main>

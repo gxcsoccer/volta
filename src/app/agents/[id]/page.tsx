@@ -27,6 +27,16 @@ interface AgentDetail {
     system_prompt: string;
     watchlist: string[];
     is_passive: boolean;
+    config?: {
+      tools?: string[];
+      skills?: string[];
+      rules?: {
+        max_position_pct?: number;
+        min_cash_pct?: number;
+        max_trades_per_round?: number;
+        stop_loss_pct?: number;
+      };
+    };
   };
   account: { cash: number; initial_capital: number };
   positions: {
@@ -501,6 +511,45 @@ export default function AgentDetailPage() {
           ))}
         </div>
       </div>
+
+      {/* ---- Tools & Skills ---- */}
+      {!agent.is_passive && (agent.config?.tools?.length || agent.config?.skills?.length || agent.config?.rules) && (
+        <div className="bg-gray-900/50 border border-gray-800/60 rounded-2xl p-5">
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
+            Configuration
+          </h2>
+          <div className="flex flex-wrap gap-4 text-xs">
+            {agent.config?.tools && agent.config.tools.length > 0 && (
+              <div>
+                <span className="text-gray-500">Tools:</span>{" "}
+                {agent.config.tools.map((t) => (
+                  <span key={t} className="inline-block px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 mr-1.5 mb-1">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
+            {agent.config?.skills && agent.config.skills.length > 0 && (
+              <div>
+                <span className="text-gray-500">Skills:</span>{" "}
+                {agent.config.skills.map((s) => (
+                  <span key={s} className="inline-block px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 mr-1.5 mb-1">
+                    {s}
+                  </span>
+                ))}
+              </div>
+            )}
+            {agent.config?.rules && (
+              <div className="text-gray-500">
+                Rules: max {agent.config.rules.max_position_pct}% position,
+                min {agent.config.rules.min_cash_pct}% cash,
+                {agent.config.rules.max_trades_per_round} trades/round
+                {agent.config.rules.stop_loss_pct && `, ${agent.config.rules.stop_loss_pct}% stop-loss`}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ---- Strategy ---- */}
       {!agent.is_passive && (

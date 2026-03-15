@@ -6,6 +6,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { getQuotes } from "./market-data";
 import { STOCK_POOL } from "./stock-pool";
 import type { Agent, MarketQuote } from "./types";
+import { getAgentConfig } from "./types";
 
 interface ScreeningResult {
   agent_id: string;
@@ -87,6 +88,8 @@ async function screenForAgent(
 
   const marketOverview = formatMarketOverview(quotes);
 
+  const config = getAgentConfig(agent);
+
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
@@ -94,16 +97,16 @@ async function screenForAgent(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: agent.model,
+      model: config.model.primary,
       messages: [
-        { role: "system", content: agent.system_prompt },
+        { role: "system", content: config.identity.soul },
         {
           role: "user",
           content: `${marketOverview}\n\n${SCREENING_PROMPT}`,
         },
       ],
-      max_tokens: 1024,
-      temperature: 0.7,
+      max_tokens: config.model.max_tokens ?? 1024,
+      temperature: config.model.temperature ?? 0.7,
     }),
   });
 

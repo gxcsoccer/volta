@@ -9,7 +9,14 @@ import type {
   MarketQuote,
   Trade,
   AIResponse,
+  Skill,
 } from "./types";
+import { getAgentConfig } from "./types";
+import { buildSystemPrompt } from "./prompt-builder";
+import { getToolsForAgent } from "./tools/registry";
+import { runToolLoop } from "./tool-loop";
+import type { ToolDefinition } from "./tools/types";
+import type { ToolCallResult } from "./tools/types";
 
 /**
  * Build the context prompt that describes current portfolio state and market data
@@ -91,26 +98,49 @@ Rules:
 - Think about position sizing and diversification
 `;
 
+export interface AIDecisionResult {
+  response: AIResponse;
+  toolCalls?: ToolCallResult[];
+}
+
 /**
- * Get trading decisions from an AI agent via OpenAI-compatible gateway
+ * Get trading decisions from an AI agent via OpenAI-compatible gateway.
+ * Supports tool-use loop when agent has tools configured.
  */
 export async function getAIDecision(
   agent: Agent,
   account: Account,
   positions: Position[],
   quotes: MarketQuote[],
-  recentTrades: Trade[]
-): Promise<AIResponse> {
+  recentTrades: Trade[],
+  skills?: Skill[]
+): Promise<AIDecisionResult> {
+  const config = getAgentConfig(agent);
+  const agentTools = getToolsForAgent(config.tools);
+
+  // Build system prompt using prompt-builder
+  const systemPrompt = buildSystemPrompt(agent, agentTools.length > 0 ? agentTools : undefined, skills);
+
   const context = buildContextPrompt(account, positions, quotes, recentTrades);
+  const userPrompt = `${context}\n\nBased on your strategy and the above portfolio/market data, what trades (if any) should we make right now?\n\n${DECISION_SCHEMA}`.trim();
 
-  const userPrompt = `
-${context}
+  // If agent has tools, use the tool-use loop
+  if (agentTools.length > 0) {
+    return runToolLoopDecision(config, systemPrompt, userPrompt, agentTools);
+  }
 
-Based on your strategy and the above portfolio/market data, what trades (if any) should we make right now?
+  // Otherwise, single-shot request (legacy path)
+  return singleShotDecision(config, systemPrompt, userPrompt);
+}
 
-${DECISION_SCHEMA}
-`.trim();
-
+/**
+ * Single-shot AI request (no tool calling)
+ */
+async function singleShotDecision(
+  config: ReturnType<typeof getAgentConfig>,
+  systemPrompt: string,
+  userPrompt: string
+): Promise<AIDecisionResult> {
   const baseUrl = process.env.AI_BASE_URL;
   const apiKey = process.env.AI_API_KEY;
 
@@ -125,13 +155,13 @@ ${DECISION_SCHEMA}
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: agent.model,
+      model: config.model.primary,
       messages: [
-        { role: "system", content: agent.system_prompt },
+        { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      max_tokens: 1024,
-      temperature: 0.7,
+      max_tokens: config.model.max_tokens ?? 1024,
+      temperature: config.model.temperature ?? 0.7,
     }),
   });
 
@@ -143,7 +173,31 @@ ${DECISION_SCHEMA}
   const data = await res.json();
   const responseText = data.choices?.[0]?.message?.content ?? "{}";
 
-  return parseAIResponse(responseText);
+  return { response: parseAIResponse(responseText) };
+}
+
+/**
+ * Tool-use loop AI request
+ */
+async function runToolLoopDecision(
+  config: ReturnType<typeof getAgentConfig>,
+  systemPrompt: string,
+  userPrompt: string,
+  tools: ToolDefinition[]
+): Promise<AIDecisionResult> {
+  const result = await runToolLoop({
+    model: config.model.primary,
+    systemPrompt,
+    userPrompt,
+    tools,
+    temperature: config.model.temperature ?? 0.7,
+    maxTokens: config.model.max_tokens ?? 1024,
+  });
+
+  return {
+    response: result.response,
+    toolCalls: result.toolCalls,
+  };
 }
 
 /**

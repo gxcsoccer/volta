@@ -6,6 +6,8 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { isMarketOpen, getQuotes } from "./market-data";
 import { getAIDecision } from "./ai-decision";
 import { validateTrade, executeTrade } from "./trading-engine";
+import { getAgentConfig } from "./types";
+import { loadSkills, loadSkillsByName } from "./skills/registry";
 import type {
   Agent,
   Account,
@@ -170,19 +172,38 @@ async function processAgent(
       .map((s) => quoteMap.get(s.toUpperCase()))
       .filter((q): q is MarketQuote => q !== undefined);
 
-    // Call AI for decisions
-    const aiResponse = await getAIDecision(
+    // Load skills for this agent
+    const config = getAgentConfig(agent);
+    const skills = config.skills.length > 0
+      ? await loadSkillsByName(db, config.skills).then(async (byName) => {
+          // Try by name first, then by ID for UUID-style skills
+          if (byName.length > 0) return byName;
+          return loadSkills(db, config.skills);
+        })
+      : [];
+
+    // Call AI for decisions (with tools and skills)
+    const aiResult = await getAIDecision(
       agent,
       account as Account,
       (positions ?? []) as Position[],
       agentQuotes,
-      (recentTrades ?? []) as Trade[]
+      (recentTrades ?? []) as Trade[],
+      skills
     );
 
-    result.decisions = aiResponse.decisions;
+    result.decisions = aiResult.response.decisions;
+
+    // Log tool calls if any
+    if (aiResult.toolCalls && aiResult.toolCalls.length > 0) {
+      console.log(
+        `[${agent.name}] Tool calls:`,
+        aiResult.toolCalls.map((tc) => `${tc.name}(${JSON.stringify(tc.arguments)}) → ${tc.duration_ms}ms`)
+      );
+    }
 
     // Execute each decision
-    for (const decision of aiResponse.decisions) {
+    for (const decision of aiResult.response.decisions) {
       if (decision.action === "hold") continue;
 
       // Validate

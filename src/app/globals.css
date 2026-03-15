@@ -53,3 +53,25 @@ html {
   animation: shimmer 1.5s infinite;
   border-radius: 6px;
 }
+
+/* Admin form input fields */
+.input-field {
+  width: 100%;
+  background: rgba(31, 41, 55, 0.4);
+  border: 1px solid rgba(55, 65, 81, 0.5);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #e5e7eb;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.input-field::placeholder {
+  color: #4b5563;
+}
+.input-field:focus {
+  border-color: rgba(250, 204, 21, 0.5);
+}
+textarea.input-field {
+  resize: vertical;
+}

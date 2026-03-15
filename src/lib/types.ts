@@ -14,7 +14,77 @@ export interface Agent {
   watchlist: string[]; // stock symbols this agent tracks
   is_active: boolean;
   is_passive: boolean; // passive benchmark (buy & hold, no AI calls)
+  config: AgentConfig; // JSONB structured configuration
   created_at: string;
+}
+
+// --- Agent Config (JSONB) ---
+
+export interface AgentConfig {
+  model: {
+    primary: string;
+    fallbacks?: string[];
+    temperature?: number;
+    max_tokens?: number;
+  };
+  identity: {
+    soul: string;
+    description: string;
+  };
+  tools: string[]; // enabled tool IDs
+  skills: string[]; // enabled skill IDs (UUIDs or names)
+  rules: {
+    max_position_pct: number;
+    min_cash_pct: number;
+    max_trades_per_round: number;
+    stop_loss_pct?: number;
+  };
+}
+
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  content: string;
+  created_at: string;
+}
+
+const DEFAULT_CONFIG: AgentConfig = {
+  model: { primary: "", temperature: 0.7, max_tokens: 1024 },
+  identity: { soul: "", description: "" },
+  tools: [],
+  skills: [],
+  rules: { max_position_pct: 25, min_cash_pct: 10, max_trades_per_round: 5 },
+};
+
+/**
+ * Get agent config with backward compatibility.
+ * Fills in defaults for any missing fields, supports agents
+ * that haven't been migrated to the JSONB config yet.
+ */
+export function getAgentConfig(agent: Agent): AgentConfig {
+  const raw = agent.config ?? {};
+  return {
+    model: {
+      primary: raw.model?.primary ?? agent.model ?? "",
+      fallbacks: raw.model?.fallbacks ?? [],
+      temperature: raw.model?.temperature ?? DEFAULT_CONFIG.model.temperature,
+      max_tokens: raw.model?.max_tokens ?? DEFAULT_CONFIG.model.max_tokens,
+    },
+    identity: {
+      soul: raw.identity?.soul ?? agent.system_prompt ?? "",
+      description: raw.identity?.description ?? agent.description ?? "",
+    },
+    tools: raw.tools ?? DEFAULT_CONFIG.tools,
+    skills: raw.skills ?? DEFAULT_CONFIG.skills,
+    rules: {
+      max_position_pct: raw.rules?.max_position_pct ?? DEFAULT_CONFIG.rules.max_position_pct,
+      min_cash_pct: raw.rules?.min_cash_pct ?? DEFAULT_CONFIG.rules.min_cash_pct,
+      max_trades_per_round: raw.rules?.max_trades_per_round ?? DEFAULT_CONFIG.rules.max_trades_per_round,
+      stop_loss_pct: raw.rules?.stop_loss_pct,
+    },
+  };
 }
 
 export interface Account {
