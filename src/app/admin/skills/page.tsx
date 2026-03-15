@@ -20,7 +20,7 @@ export default function AdminSkillsPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   // Form state
   const [formName, setFormName] = useState("");
@@ -29,9 +29,9 @@ export default function AdminSkillsPage() {
   const [formContent, setFormContent] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 4000);
+  const showToast = (msg: string, type: "success" | "error" = "success") => {
+    setToast({ type, message: msg });
+    setTimeout(() => setToast(null), 5000);
   };
 
   const fetchSkills = useCallback(async () => {
@@ -39,9 +39,17 @@ export default function AdminSkillsPage() {
       const res = await fetch("/api/admin/skills", {
         headers: { Authorization: `Bearer ${getSecret()}` },
       });
-      if (res.ok) setSkills(await res.json());
+      if (res.ok) {
+        setSkills(await res.json());
+      } else if (res.status === 401) {
+        showToast("Admin secret is incorrect. Please lock and re-enter.", "error");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.error || `API error: ${res.status}`, "error");
+      }
     } catch (err) {
       console.error(err);
+      showToast("Failed to connect to API", "error");
     } finally {
       setLoading(false);
     }
@@ -145,8 +153,14 @@ export default function AdminSkillsPage() {
       </div>
 
       {toast && (
-        <div className="px-4 py-2 rounded-lg text-sm bg-emerald-950/60 text-emerald-300 border border-emerald-900/60">
-          {toast}
+        <div
+          className={`px-4 py-2.5 rounded-lg text-sm border ${
+            toast.type === "error"
+              ? "bg-red-950/60 text-red-300 border-red-900/60"
+              : "bg-emerald-950/60 text-emerald-300 border-emerald-900/60"
+          }`}
+        >
+          {toast.message}
         </div>
       )}
 

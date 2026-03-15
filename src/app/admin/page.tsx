@@ -39,9 +39,15 @@ export default function AdminAgentsPage() {
       });
       if (res.ok) {
         setAgents(await res.json());
+      } else if (res.status === 401) {
+        showToast("error", "Admin secret is incorrect. Please lock and re-enter.");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showToast("error", data.error || `API error: ${res.status}`);
       }
     } catch (err) {
       console.error(err);
+      showToast("error", "Failed to connect to API");
     } finally {
       setLoading(false);
     }

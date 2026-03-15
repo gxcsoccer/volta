@@ -178,21 +178,9 @@ export default function NewAgentPage() {
               className="input-field"
               required
             >
-              {(() => {
-                const groups = new Map<string, typeof AVAILABLE_MODELS>();
-                AVAILABLE_MODELS.forEach((m) => {
-                  const list = groups.get(m.provider) ?? [];
-                  list.push(m);
-                  groups.set(m.provider, list);
-                });
-                return Array.from(groups.entries()).map(([prov, models]) => (
-                  <optgroup key={prov} label={prov}>
-                    {models.map((m) => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </optgroup>
-                ));
-              })()}
+              {AVAILABLE_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>{m.name} ({m.id})</option>
+              ))}
             </select>
           </Field>
           <Field label="Temperature">

@@ -12,18 +12,56 @@ export default function AdminLayout({
   const [authed, setAuthed] = useState(false);
   const [secretInput, setSecretInput] = useState("");
   const [checking, setChecking] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  // Verify stored secret against API on mount
   useEffect(() => {
     const secret = localStorage.getItem("volta_secret");
-    setAuthed(!!secret);
-    setChecking(false);
+    if (!secret) {
+      setChecking(false);
+      return;
+    }
+
+    // Quick verify: try fetching skills (lightweight)
+    fetch("/api/admin/skills", {
+      headers: { Authorization: `Bearer ${secret}` },
+    })
+      .then((res) => {
+        if (res.ok) {
+          setAuthed(true);
+        } else {
+          // Secret is stale/wrong, clear it
+          localStorage.removeItem("volta_secret");
+          setError("Stored secret is invalid. Please re-enter.");
+        }
+      })
+      .catch(() => {
+        // Network error, trust localStorage
+        setAuthed(true);
+      })
+      .finally(() => setChecking(false));
   }, []);
 
   const handleLogin = () => {
     if (!secretInput.trim()) return;
-    localStorage.setItem("volta_secret", secretInput.trim());
-    setAuthed(true);
-    setSecretInput("");
+    setError(null);
+
+    // Verify before saving
+    fetch("/api/admin/skills", {
+      headers: { Authorization: `Bearer ${secretInput.trim()}` },
+    })
+      .then((res) => {
+        if (res.ok) {
+          localStorage.setItem("volta_secret", secretInput.trim());
+          setAuthed(true);
+          setSecretInput("");
+        } else {
+          setError("Invalid secret. Please check and try again.");
+        }
+      })
+      .catch(() => {
+        setError("Failed to connect to API.");
+      });
   };
 
   if (checking) {
@@ -38,6 +76,11 @@ export default function AdminLayout({
     return (
       <div className="max-w-sm mx-auto mt-20 space-y-4">
         <h1 className="text-xl font-bold text-center">Admin Access</h1>
+        {error && (
+          <div className="px-4 py-2 rounded-lg text-sm bg-red-950/60 text-red-300 border border-red-900/60">
+            {error}
+          </div>
+        )}
         <div className="flex gap-2">
           <input
             type="password"
