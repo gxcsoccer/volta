@@ -203,14 +203,16 @@ async function processAgent(
     }
 
     // Execute each decision
+    let currentPositions = (positions ?? []) as Position[];
+
     for (const decision of aiResult.response.decisions) {
       if (decision.action === "hold") continue;
 
-      // Validate
+      // Validate against latest account + position state
       const validation = validateTrade(
         decision,
         account as Account,
-        (positions ?? []) as Position[],
+        currentPositions,
         quoteMap
       );
 
@@ -237,7 +239,7 @@ async function processAgent(
         continue;
       }
 
-      // Execute
+      // Execute (atomic — trade + cash + position in one DB transaction)
       const tradeResult = await executeTrade(
         db,
         account.id,
@@ -254,14 +256,30 @@ async function processAgent(
         error: tradeResult.error,
       });
 
-      // Refresh account state after each trade (cash changed)
-      const { data: refreshed } = await db
+      // Skip refresh if trade failed (nothing changed in DB)
+      if (!tradeResult.success) {
+        result.errors.push(
+          `Trade failed: ${tradeResult.side} ${tradeResult.shares} ${tradeResult.symbol} - ${tradeResult.error}`
+        );
+        continue;
+      }
+
+      // Refresh both account and positions after successful trade
+      const { data: refreshedAccount } = await db
         .from("accounts")
         .select("*")
         .eq("id", account.id)
         .single();
-      if (refreshed) {
-        Object.assign(account, refreshed);
+      if (refreshedAccount) {
+        Object.assign(account, refreshedAccount);
+      }
+
+      const { data: refreshedPositions } = await db
+        .from("positions")
+        .select("*")
+        .eq("account_id", account.id);
+      if (refreshedPositions) {
+        currentPositions = refreshedPositions as Position[];
       }
     }
   } catch (err) {

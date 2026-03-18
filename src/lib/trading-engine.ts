@@ -97,7 +97,13 @@ export function validateTrade(
 }
 
 /**
- * Execute a single trade and update the database
+ * Execute a single trade atomically via database RPC.
+ *
+ * Primary path: calls `execute_trade_atomic` which wraps trade insert +
+ * cash adjust + position upsert in a single PostgreSQL transaction.
+ *
+ * Fallback path: if the RPC doesn't exist yet, uses sequential operations
+ * with compensating rollback on failure.
  */
 export async function executeTrade(
   db: SupabaseClient,
@@ -110,44 +116,31 @@ export async function executeTrade(
   const executionPrice = applySlippage(quote.price, side);
   const fee = calculateFees(side, decision.shares, executionPrice);
   const total = decision.shares * executionPrice;
+  const symbol = decision.symbol.toUpperCase();
 
-  // Start a "transaction" (Supabase doesn't have true transactions via REST,
-  // but we use RPC or sequential operations)
   try {
-    // 1. Record the trade
-    const { error: tradeError } = await db.from("trades").insert({
-      account_id: accountId,
-      symbol: decision.symbol.toUpperCase(),
-      side,
-      shares: decision.shares,
-      price: executionPrice,
-      total,
-      fee,
-      reasoning,
+    // Try atomic RPC first
+    const { error: rpcError } = await db.rpc("execute_trade_atomic", {
+      p_account_id: accountId,
+      p_symbol: symbol,
+      p_side: side,
+      p_shares: decision.shares,
+      p_price: executionPrice,
+      p_total: total,
+      p_fee: fee,
+      p_reasoning: reasoning,
     });
-    if (tradeError) throw tradeError;
 
-    // 2. Update cash
-    if (side === "buy") {
-      const { error } = await db.rpc("adjust_cash", {
-        p_account_id: accountId,
-        p_amount: -(total + fee),
-      });
-      if (error) throw error;
-    } else {
-      const { error } = await db.rpc("adjust_cash", {
-        p_account_id: accountId,
-        p_amount: total - fee,
-      });
-      if (error) throw error;
+    // If the function doesn't exist, fall back to sequential + compensating
+    if (rpcError && rpcError.code === "PGRST202") {
+      console.warn("[Trade] execute_trade_atomic not found, using fallback");
+      return await executeTradeWithRollback(
+        db, accountId, symbol, side, decision.shares,
+        executionPrice, total, fee, reasoning
+      );
     }
 
-    // 3. Update position
-    if (side === "buy") {
-      await upsertPosition(db, accountId, decision.symbol.toUpperCase(), decision.shares, executionPrice);
-    } else {
-      await reducePosition(db, accountId, decision.symbol.toUpperCase(), decision.shares);
-    }
+    if (rpcError) throw rpcError;
 
     return {
       success: true,
@@ -159,6 +152,10 @@ export async function executeTrade(
       fee,
     };
   } catch (err) {
+    console.error(
+      `[Trade FAILED] ${side} ${decision.shares} ${symbol} @ $${executionPrice}:`,
+      err instanceof Error ? err.message : String(err)
+    );
     return {
       success: false,
       symbol: decision.symbol,
@@ -170,6 +167,66 @@ export async function executeTrade(
       error: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+/**
+ * Fallback: sequential operations with compensating rollback.
+ * Used when the atomic RPC function hasn't been deployed yet.
+ */
+async function executeTradeWithRollback(
+  db: SupabaseClient,
+  accountId: string,
+  symbol: string,
+  side: "buy" | "sell",
+  shares: number,
+  price: number,
+  total: number,
+  fee: number,
+  reasoning: string
+): Promise<TradeResult> {
+  const result: TradeResult = { success: false, symbol, side, shares, price, total, fee };
+
+  // Step 1: Insert trade record
+  const { data: tradeRecord, error: tradeError } = await db
+    .from("trades")
+    .insert({
+      account_id: accountId, symbol, side, shares, price, total, fee, reasoning,
+    })
+    .select("id")
+    .single();
+
+  if (tradeError) throw tradeError;
+  const tradeId = tradeRecord.id;
+
+  // Step 2: Adjust cash
+  const cashAmount = side === "buy" ? -(total + fee) : total - fee;
+  const { error: cashError } = await db.rpc("adjust_cash", {
+    p_account_id: accountId,
+    p_amount: cashAmount,
+  });
+
+  if (cashError) {
+    // Rollback step 1
+    await db.from("trades").delete().eq("id", tradeId);
+    throw cashError;
+  }
+
+  // Step 3: Update position
+  try {
+    if (side === "buy") {
+      await upsertPosition(db, accountId, symbol, shares, price);
+    } else {
+      await reducePosition(db, accountId, symbol, shares);
+    }
+  } catch (posError) {
+    // Rollback steps 1 & 2
+    await db.rpc("adjust_cash", { p_account_id: accountId, p_amount: -cashAmount });
+    await db.from("trades").delete().eq("id", tradeId);
+    throw posError;
+  }
+
+  result.success = true;
+  return result;
 }
 
 /**
@@ -190,7 +247,6 @@ async function upsertPosition(
     .single();
 
   if (existing) {
-    // Update average cost
     const totalShares = existing.shares + newShares;
     const avgCost =
       (existing.avg_cost * existing.shares + price * newShares) / totalShares;
@@ -235,7 +291,6 @@ async function reducePosition(
 
   const remaining = existing.shares - sharesToSell;
   if (remaining <= 0) {
-    // Remove position entirely
     const { error } = await db
       .from("positions")
       .delete()
