@@ -13,6 +13,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",
     "date-fns": "^4.1.0",
+    "longport": "^3.0.23",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",

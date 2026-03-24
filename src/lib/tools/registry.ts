@@ -8,6 +8,8 @@ import { historicalBarsTool } from "./historical-bars";
 import { newsSearchTool } from "./news-search";
 import { earningsDataTool } from "./earnings-data";
 import { sectorHeatmapTool } from "./sector-heatmap";
+import { marketTemperatureTool } from "./market-temperature";
+import { capitalFlowTool } from "./capital-flow";
 
 /**
  * All registered tools
@@ -18,6 +20,8 @@ const ALL_TOOLS: ToolDefinition[] = [
   newsSearchTool,
   earningsDataTool,
   sectorHeatmapTool,
+  marketTemperatureTool,
+  capitalFlowTool,
 ];
 
 const toolMap = new Map(ALL_TOOLS.map((t) => [t.id, t]));

@@ -45,6 +45,13 @@ Build prompt (soul + rules + tools + skills)
 | `news_search` | Recent financial news | Alpaca News API |
 | `earnings_data` | P/E, dividend yield, market cap | Static fundamentals |
 | `sector_heatmap` | S&P 500 sector ETF performance | Alpaca quotes |
+| `market_temperature` | Market sentiment index (0–100) for US/HK/CN/SG | Longbridge OpenAPI |
+| `capital_flow` | Intraday capital flow (large/medium/small money in vs out) | Longbridge OpenAPI |
+
+> **Note:** `market_temperature` and `capital_flow` require Longbridge credentials
+> (`LONGPORT_APP_KEY`, `LONGPORT_APP_SECRET`, `LONGPORT_ACCESS_TOKEN`).
+> They return a clear error when not configured, and other tools continue to work normally.
+> The `longbridge-terminal` CLI (`longbridge login`) is a convenient way to obtain an access token.
 
 ## Built-in Skills
 
@@ -118,3 +125,6 @@ npm test
 | `AI_BASE_URL` | AI gateway (e.g. `https://dashscope.aliyuncs.com/compatible-mode/v1`) |
 | `AI_API_KEY` | AI gateway API key |
 | `CRON_SECRET` | Admin auth secret |
+| `LONGPORT_APP_KEY` | Longbridge App Key (optional, for `market_temperature` / `capital_flow` tools) |
+| `LONGPORT_APP_SECRET` | Longbridge App Secret (optional) |
+| `LONGPORT_ACCESS_TOKEN` | Longbridge Access Token — run `longbridge login` via [longbridge-terminal](https://github.com/longbridge/longbridge-terminal) to obtain |

@@ -45,6 +45,14 @@ config
 | `news_search` | 近期财经新闻 | Alpaca News API |
 | `earnings_data` | 市盈率、股息率、市值等基本面 | 静态数据 |
 | `sector_heatmap` | 标普 500 板块 ETF 表现 | Alpaca 行情 |
+| `market_temperature` | 市场情绪温度指数（0–100）覆盖美/港/沪深/新加坡 | Longbridge OpenAPI |
+| `capital_flow` | 当日资金流向（大/中/小单买卖净流入） | Longbridge OpenAPI |
+
+> **说明：** `market_temperature` 和 `capital_flow` 需要配置 Longbridge 凭证
+> （`LONGPORT_APP_KEY`、`LONGPORT_APP_SECRET`、`LONGPORT_ACCESS_TOKEN`）。
+> 未配置时工具会返回明确的错误提示，不影响其他工具正常使用。
+> 可通过 [longbridge-terminal](https://github.com/longbridge/longbridge-terminal) CLI
+> 执行 `longbridge login` 获取 Access Token。
 
 ## 内置技能
 
@@ -125,3 +133,6 @@ npm test
 | `AI_BASE_URL` | AI 网关地址（如 `https://dashscope.aliyuncs.com/compatible-mode/v1`） |
 | `AI_API_KEY` | AI 网关 API 密钥 |
 | `CRON_SECRET` | 管理后台认证密钥 |
+| `LONGPORT_APP_KEY` | Longbridge App Key（可选，启用 `market_temperature` / `capital_flow` 工具） |
+| `LONGPORT_APP_SECRET` | Longbridge App Secret（可选） |
+| `LONGPORT_ACCESS_TOKEN` | Longbridge Access Token — 通过 [longbridge-terminal](https://github.com/longbridge/longbridge-terminal) 执行 `longbridge login` 获取 |
