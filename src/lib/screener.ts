@@ -210,8 +210,20 @@ export async function runScreeningRound(
     return summary;
   }
 
-  // 3. Each AI picks its watchlist
+  // 3. Each AI picks its watchlist (skip agents with fixed watchlists like Aurum Rotator)
   for (const agent of agents as Agent[]) {
+    const agentConfig = getAgentConfig(agent);
+    if (agentConfig.tools.includes("aurum_signal")) {
+      // Aurum Rotator manages its own watchlist via external signals — skip screening
+      summary.results.push({
+        agent_id: agent.id,
+        agent_name: agent.name,
+        previous_watchlist: agent.watchlist,
+        new_watchlist: agent.watchlist,
+        reasoning: "Skipped: uses external signal tool (aurum_signal)",
+      });
+      continue;
+    }
     const result: ScreeningResult = {
       agent_id: agent.id,
       agent_name: agent.name,
