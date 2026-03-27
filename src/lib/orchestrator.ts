@@ -106,11 +106,11 @@ export async function runTradingRound(
     );
   }
 
-  // 6. Process each agent
-  for (const agent of agents as Agent[]) {
-    const result = await processAgent(db, agent, quoteMap);
-    summary.results.push(result);
-  }
+  // 6. Process all agents in parallel
+  const results = await Promise.all(
+    (agents as Agent[]).map((agent) => processAgent(db, agent, quoteMap))
+  );
+  summary.results.push(...results);
 
   // 7. Take portfolio snapshots
   await takeSnapshots(db, quoteMap);
