@@ -2,9 +2,16 @@
 // Stock Universe - S&P 500 Top 100 by market cap + major ETFs
 // ============================================================
 
+// Aurum multi-asset rotation ETFs (core + sector)
+export const AURUM_ETFS = [
+  "SPY", "QQQ", "EFA", "EEM", "TLT", "GLD", "SHY",
+  "XLK", "XLE", "XLF", "XLV",
+];
+
 export const STOCK_POOL = [
-  // ETFs
-  "SPY", "QQQ",
+  // ETFs (including Aurum rotation assets)
+  "SPY", "QQQ", "EFA", "EEM", "TLT", "GLD", "SHY",
+  "XLK", "XLE", "XLF", "XLV",
   // S&P 500 Top 100 by market cap weight
   "NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "AVGO",
   "TSLA", "WMT", "LLY", "JPM", "XOM", "V", "JNJ", "MU", "COST",

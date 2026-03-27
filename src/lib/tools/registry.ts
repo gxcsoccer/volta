@@ -8,6 +8,7 @@ import { historicalBarsTool } from "./historical-bars";
 import { newsSearchTool } from "./news-search";
 import { earningsDataTool } from "./earnings-data";
 import { sectorHeatmapTool } from "./sector-heatmap";
+import { aurumSignalTool } from "./aurum-signal";
 
 /**
  * All registered tools
@@ -18,6 +19,7 @@ const ALL_TOOLS: ToolDefinition[] = [
   newsSearchTool,
   earningsDataTool,
   sectorHeatmapTool,
+  aurumSignalTool,
 ];
 
 const toolMap = new Map(ALL_TOOLS.map((t) => [t.id, t]));
