@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import { getToolsForAgent, getAllTools, getToolById, toOpenAITools } from "../tools/registry";
 
 describe("tools/registry", () => {
-  it("getAllTools returns all 5 registered tools", () => {
+  it("getAllTools returns all 6 registered tools", () => {
     const tools = getAllTools();
-    expect(tools.length).toBe(5);
+    expect(tools.length).toBe(6);
 
     const ids = tools.map((t) => t.id);
     expect(ids).toContain("technical_analysis");
@@ -12,6 +12,7 @@ describe("tools/registry", () => {
     expect(ids).toContain("news_search");
     expect(ids).toContain("earnings_data");
     expect(ids).toContain("sector_heatmap");
+    expect(ids).toContain("aurum_signal");
   });
 
   it("getToolById returns correct tool", () => {
@@ -54,7 +55,7 @@ describe("tools/registry", () => {
   it("toOpenAITools handles multiple tools", () => {
     const tools = getAllTools();
     const openAI = toOpenAITools(tools);
-    expect(openAI.length).toBe(5);
+    expect(openAI.length).toBe(6);
     openAI.forEach((t) => {
       expect(t.type).toBe("function");
       expect(t.function.name).toBeTruthy();
